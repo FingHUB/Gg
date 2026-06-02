@@ -1,6 +1,6 @@
 
 pcall(function()
-    queue_on_teleport([[loadstring(game:HttpGet("https://gist.github.com/Generallua/5f234ae76a027259eaa79208a9045248/raw/645703b4be19253f2f3d093d94d831bb8653acb9/PMLOL"))()]])
+    queue_on_teleport([[loadstring(game:HttpGet("https://github.com/FingHUB/Gg/raw/refs/heads/main/PMGG"))()]])
 end)
 _G.Gnv = _G.Gnv or false
 
