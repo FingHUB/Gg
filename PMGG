@@ -1908,6 +1908,7 @@ end)
 return
 end
 
+-- [[ ส่วนของหน้าต่าง (VaultTrigger) ที่ทำการแก้ไข ]]
 if obj.Name == "VaultTrigger" then
 local target = obj.Parent or obj
 if windowPalletHighlights[target] then return end
@@ -1923,12 +1924,17 @@ espPart.Transparency = 1
 espPart.Color = Color3.fromRGB(255, 205, 0)
 espPart.Material = Enum.Material.Neon 
 
+-- บังคับใช้ CFrame ของตัวหน้าต่าง (Target) โดยตรงเพื่อให้ตรงล็อกองศาและตำแหน่งบานหน้าต่างนั้นๆ
 if target:IsA("Model") then
+if target.PrimaryPart then
+espPart.CFrame = target.PrimaryPart.CFrame
+else
 espPart.CFrame = target:GetPivot()
+end
 elseif target:IsA("BasePart") then
 espPart.CFrame = target.CFrame
 else
-espPart.Position = obj.Position
+espPart.CFrame = obj.CFrame
 end
 espPart.Parent = workspace
 
@@ -2208,7 +2214,6 @@ end
 end)
 
 Players.PlayerRemoving:Connect(removeESP)
-
     end,
     [55] = function()
         print("Map 3 loaded")
