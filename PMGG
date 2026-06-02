@@ -1463,12 +1463,14 @@ PlayerESP = false,
 WindowPalletESP = false,
 Crosshair = false,
 AutoSkillCheck = false,
-FlashlightAimbot = false, -- [เพิ่มการตั้งค่า Flashlight Aimbot]
+FlashlightAimbot = false,
 
 ESP_Line = true,
 ESP_CenterDist = true,
 ShiftLockEnabled = false,
-RotationSmoothness = 3
+RotationSmoothness = 3,
+SkillCheckCooldown = 0, -- [เพิ่มการตั้งค่าคูลดาวน์ Skillcheck]
+AimbotSmoothness = 5 -- [เพิ่มการตั้งค่าความลื่นของ Aimbot]
 }
 
 local function SaveConfig()
@@ -1501,12 +1503,13 @@ PlayerESP = Config.PlayerESP,
 WindowPalletESP = Config.WindowPalletESP,
 Crosshair = Config.Crosshair,
 AutoSkillCheck = Config.AutoSkillCheck,
-FlashlightAimbot = Config.FlashlightAimbot, -- [เพิ่ม GNV State]
+FlashlightAimbot = Config.FlashlightAimbot,
 ESP_Line = Config.ESP_Line,
 ESP_CenterDist = Config.ESP_CenterDist,
 }
 
-local isFlashlightAiming = false -- ตัวแปรเช็คสถานะการเปิด/ปิดไฟฉายจริง
+local isFlashlightAiming = false 
+local lastSkillCheckClick = 0 -- ตัวแปรเก็บเวลาล่าสุดที่กดสคิลเช็ค
 
 ---------------------------------------------------------
 -- CROSSHAIR SYSTEM (Red Neon)
@@ -1607,8 +1610,16 @@ AutoTab:CreateLabel("Auto Actions")
 AutoTab:CreateToggle("Auto Skillcheck", Config.AutoSkillCheck, function(v) 
 GNV.AutoSkillCheck = v; Config.AutoSkillCheck = v; SaveConfig() 
 end)
+-- เพิ่ม Slider สำหรับหน่วงคูลดาวน์ของสคิลเช็ค (0 คือ 0 วิ, 10 คือ 1 วิ)
+AutoTab:CreateSlider("Skillcheck Cooldown", 0, 10, Config.SkillCheckCooldown, function(v)
+Config.SkillCheckCooldown = v; SaveConfig()
+end)
 AutoTab:CreateToggle("Flashlight aimbot", Config.FlashlightAimbot, function(v) 
 GNV.FlashlightAimbot = v; Config.FlashlightAimbot = v; if not v then isFlashlightAiming = false end; SaveConfig() 
+end)
+-- เพิ่ม Slider ปรับความลื่นไหลพริ้วไหวของระบบกุมเป้าหมาย Aimbot
+AutoTab:CreateSlider("Aimbot Smoothness", 1, 10, Config.AimbotSmoothness, function(v)
+Config.AimbotSmoothness = v; SaveConfig()
 end)
 
 SettingTap:CreateLabel("ESP Player")
@@ -1908,7 +1919,6 @@ end)
 return
 end
 
--- [[ ส่วนของหน้าต่าง (VaultTrigger) ที่ทำการแก้ไข ]]
 if obj.Name == "VaultTrigger" then
 local target = obj.Parent or obj
 if windowPalletHighlights[target] then return end
@@ -1924,7 +1934,6 @@ espPart.Transparency = 1
 espPart.Color = Color3.fromRGB(255, 205, 0)
 espPart.Material = Enum.Material.Neon 
 
--- บังคับใช้ CFrame ของตัวหน้าต่าง (Target) โดยตรงเพื่อให้ตรงล็อกองศาและตำแหน่งบานหน้าต่างนั้นๆ
 if target:IsA("Model") then
 if target.PrimaryPart then
 espPart.CFrame = target.PrimaryPart.CFrame
@@ -2006,7 +2015,6 @@ end
 local function updateShiftLock()
 if not shiftLockEnabled then return end
 
--- [[ ตรวจสอบสถานะการเล็งของ Aimbot เพื่อหยุดระบบ Lock move ชั่วคราว ]]
 if GNV.FlashlightAimbot and isFlashlightAiming then
 if LocalPlayer.Character then
 local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
@@ -2082,13 +2090,12 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 local method = getnamecallmethod()
 local args = {...}
 
--- ตรวจสอบเงื่อนไขเมื่อมีการส่งสัญญาณจากรีโมทไฟฉาย
 if method == "FireServer" and self.Name == "Activate" and self.Parent and self.Parent.Name == "Flashlight" then
 if GNV.FlashlightAimbot then
 if args[2] == true then
-isFlashlightAiming = true -- เริ่มล็อกเป้า
+isFlashlightAiming = true 
 elseif args[2] == false then
-isFlashlightAiming = false -- หยุดล็อกเป้า
+isFlashlightAiming = false 
 end
 end
 end
@@ -2165,22 +2172,24 @@ updatePlayers()
 updateShiftLock()
 updateWindowPalletESP()
 
--- [[ รันระบบ Flashlight Aimbot ]]
+-- [[ รันระบบ Flashlight Aimbot แบบค่อยๆ เล็ง ]]
 if GNV.FlashlightAimbot and isFlashlightAiming then
 local killerTarget = nil
--- ค้นหาตัวละครของทีม Killer
 for _, plr in ipairs(Players:GetPlayers()) do
 if plr.Team and plr.Team.Name == "Killer" and plr.Character and plr.Character:FindFirstChild("Head") then
 killerTarget = plr.Character
 break
 end
 end
--- ถ้าเจอหัวของ Killer ให้หันกล้องไปล็อกเป้าทันที
+
 if killerTarget then
-Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, killerTarget.Head.Position)
+local targetCFrame = CFrame.lookAt(Camera.CFrame.Position, killerTarget.Head.Position)
+local aimSmoothSpeed = Config.AimbotSmoothness / 10 -- แปลงค่าจากสไลเดอร์ 1-10 เป็นอัตรา Lerp
+Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimSmoothSpeed)
 end
 end
 
+-- [[ รันระบบ Auto Skillcheck แบบมีคูลดาวน์หน่วงเวลา ]]
 if GNV.AutoSkillCheck then
 local skillCheckGui = PlayerGui:FindFirstChild("SkillCheckPromptGui")
 local checkFrame = skillCheckGui and skillCheckGui:FindFirstChild("Check")
@@ -2199,6 +2208,9 @@ local perfectMax = 116 + goal.Rotation
 local fallbackMax = 135 + goal.Rotation
 
 if currentRotation >= perfectMin and currentRotation <= fallbackMax then
+-- ตรวจสอบเงื่อนไขคูลดาวน์ก่อนทำการคลิก (เช่น ถ้าตั้ง 10 คือ 1 วินาที)
+if tick() - lastSkillCheckClick >= (Config.SkillCheckCooldown / 10) then
+lastSkillCheckClick = tick() -- บันทึกเวลาที่กดล่าสุด
 if firesignal then
 firesignal(btn.MouseButton1Down)
 firesignal(btn.MouseButton1Click)
@@ -2206,6 +2218,7 @@ firesignal(btn.MouseButton1Up)
 firesignal(btn.Activated)
 else
 btn:SimulateClick() 
+end
 end
 end
 end
