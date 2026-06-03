@@ -2327,7 +2327,7 @@ end
 
 local function bypassAntiCheat(character)
     if not character then return end
-    task.wait()
+    task.wait(0.2)
     pcall(function()
         for _, v in ipairs(character:GetChildren()) do
             if v:IsA("LuaSourceContainer") then
@@ -2880,7 +2880,7 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait()
+        task.wait(0.5)
         if SafeModeToggle then
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
