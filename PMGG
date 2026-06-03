@@ -2327,7 +2327,7 @@ end
 
 local function bypassAntiCheat(character)
     if not character then return end
-    task.wait(0.2)
+    task.wait()
     pcall(function()
         for _, v in ipairs(character:GetChildren()) do
             if v:IsA("LuaSourceContainer") then
