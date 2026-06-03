@@ -3173,8 +3173,8 @@ local Config = {
     KeyFileName     = "PMGGKEY",
     OldGuiName      = "",
     MainGuiName     = "",
-    HubName         = "Test",
-    HubDescription  = "Test"
+    HubName         = "Key system",
+    HubDescription  = "PM Script"
 }
 
 -------------------------------------------------------------------------------
