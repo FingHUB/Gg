@@ -2223,17 +2223,110 @@ end)
 Players.PlayerRemoving:Connect(removeESP)
     end,
     [2116452049] = function() -- Steve one piece 
-        local base = "https://github.com/PMLOLHUB/Ui-library/raw/refs/heads/main/"
+local base = "https://github.com/PMLOLHUB/Ui-library/raw/refs/heads/main/"
 local Library = loadstring(game:HttpGet(base .. "UI PMS"))()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
-local function bypassAntiCheat(character)
-    if not character then
-        return
+local TeleportService = game:GetService("TeleportService")
+
+-- // ระบบสำหรับจัดการ Config การเซฟข้อมูลทั้งหมด \\ --
+local CONFIG_FILE = "SteveOP_Settings.json"
+local Config = {
+    AutoFarm = false,
+    SelectedQuest1 = "None",
+    SelectedQuest2 = "None",
+    SelectedQuest3 = "None",
+    SelectedQuest4 = "None",
+    SelectedQuest5 = "None",
+    BringDistance = 10,
+    SelectedItem = "",
+    EquipToggle = false,
+    AutoBusoToggle = false,
+    AutoKenToggle = false,
+    AutoAttackToggle = false,
+    SafeModeToggle = false,
+    SelectedBuyNpc = "",
+    AutoBuyFruitToggle = false,
+    Flying = false,
+    FlySpeed = 100,
+    SelectedPlayerTarget = "All",
+    SpectateToggle = false,
+    PlayerBringDistance = 10,
+    PlayerBringToggle = false,
+    SelectedStat = "nil" -- ค่าเริ่มต้นเป็นข้อความ "nil" เพื่อความปลอดภัยในการจัดเก็บ JSON
+}
+
+-- โหลดข้อมูล Config เก่าที่มีการบันทึกไว้
+pcall(function()
+    if isfile and isfile(CONFIG_FILE) then
+        local decoded = HttpService:JSONDecode(readfile(CONFIG_FILE))
+        for k, v in pairs(decoded) do
+            Config[k] = v
+        end
     end
+end)
+
+local function saveSettings()
+    pcall(function()
+        if writefile then
+            writefile(CONFIG_FILE, HttpService:JSONEncode(Config))
+        end
+    end)
+end
+
+-- ซิงค์ตัวแปรเดิมของสคริปต์ให้ดึงค่ามาจาก Config
+local AutoQuestToggle = Config.AutoFarm
+local SelectedQuest1 = Config.SelectedQuest1
+local SelectedQuest2 = Config.SelectedQuest2
+local SelectedQuest3 = Config.SelectedQuest3
+local SelectedQuest4 = Config.SelectedQuest4
+local SelectedQuest5 = Config.SelectedQuest5
+local BringDistance = Config.BringDistance
+local SelectedItem = Config.SelectedItem
+local EquipToggle = Config.EquipToggle
+local AutoBusoToggle = Config.AutoBusoToggle
+local AutoKenToggle = Config.AutoKenToggle
+local AutoAttackToggle = Config.AutoAttackToggle
+local SafeModeToggle = Config.SafeModeToggle
+local SelectedBuyNpc = Config.SelectedBuyNpc
+local AutoBuyFruitToggle = Config.AutoBuyFruitToggle
+local FlySpeed = Config.FlySpeed
+local SelectedPlayerTarget = Config.SelectedPlayerTarget
+local SpectateToggle = Config.SpectateToggle
+local PlayerBringDistance = Config.PlayerBringDistance
+local PlayerBringToggle = Config.PlayerBringToggle
+getgenv().Flying = Config.Flying
+
+local HitboxSize = 25
+local safePart = nil
+local safePosition = nil
+local originalCFrame = nil
+local IsDeliveringQuest = false
+local AssignedTools = {}
+local ClickingNPC = {}
+local ExpandedHitboxes = {}
+local BringNpcToggle = false
+local QuestNpcOriginalCFrame = {}
+local ClickingFruit = false
+
+local function startAutoKen()
+    task.spawn(function()
+        while AutoKenToggle do
+            task.wait(1)
+            if not workspace.CurrentCamera:FindFirstChild("KenEffect") then
+                pcall(function()
+                    game:GetService("Players").LocalPlayer.Backpack.Haki.Event:FireServer("Ken")
+                end)
+            end
+        end
+    end)
+end
+
+local function bypassAntiCheat(character)
+    if not character then return end
     task.wait(0.2)
     pcall(function()
         for _, v in ipairs(character:GetChildren()) do
@@ -2242,100 +2335,77 @@ local function bypassAntiCheat(character)
                     if c.Name == "" then
                         v:Destroy() break
                     end
-                    
                 end
-                
             end
-            
         end
-        
     end)
 end
+
 if LocalPlayer.Character then
     task.spawn(bypassAntiCheat, LocalPlayer.Character)
 end
 LocalPlayer.CharacterAdded:Connect(function(character)
     task.spawn(bypassAntiCheat, character)
 end)
+
 local Window = Library:CreateWindow("Steve One Piece", {
-Logo = "rbxassetid://98985755793415",
-ThemeColor = Color3.fromRGB(255, 0, 0),
-BackgroundImage = "rbxassetid://",
-ImageTransparency = 0.4,
-ToggleConfig = {Text = ""}
+    Logo = "rbxassetid://98985755793415",
+    ThemeColor = Color3.fromRGB(255, 0, 0),
+    BackgroundImage = "rbxassetid://",
+    ImageTransparency = 0.4,
+    ToggleConfig = {Text = ""}
 })
+
 local NpcFolder = nil
 for _, child in ipairs(workspace:GetChildren()) do
     if child:IsA("Folder") and child:FindFirstChild("Big head boy", true) then
         NpcFolder = child
         break
-        
     end
 end
 if not NpcFolder then
     NpcFolder = workspace:FindFirstChild("Npcs")
 end
+
 local NpcList = {}
 if NpcFolder then
     for _, npc in ipairs(NpcFolder:GetChildren()) do
         table.insert(NpcList, npc.Name)
-        
     end
 end
+
 local MainTab = Window:CreateCategory("Main", "lucide-user")
+local ItemTap = Window:CreateCategory("Item", "lucide-shopping-bag")
+local StatusTap = Window:CreateCategory("Status","lucide-bar-chart")
 local TeleportTab = Window:CreateCategory("Teleport", "lucide-map-pin")
 local PlayerTab = Window:CreateCategory("Player", "lucide-users")
 local CommandTab = Window:CreateCategory("Command", "lucide-terminal")
-local SelectedItem = ""
-local EquipToggle = false
-local AutoBusoToggle = false
-local AutoAttackToggle = false
-local SelectedQuest1 = "None"
-local SelectedQuest2 = "None"
-local SelectedQuest3 = "None"
-local AutoQuestToggle = false
-local BringDistance = 10
-local HitboxSize = 18
-local SafeModeToggle = false
-local safePart = nil
-local safePosition = nil
-local IsDeliveringQuest = false
-local AssignedTools = {}
-local ClickingNPC = {}
-local ExpandedHitboxes = {}
-local BringNpcToggle = false
-local QuestNpcOriginalCFrame = {}
-local FlySpeed = 100
-local SelectedPlayerTarget = "All"
-local SpectateToggle = false
-local PlayerBringToggle = false
-local PlayerBringDistance = 10
+
 local QuestData = {
-["Big head boy - Thief(lvl:5)"] = {npc = "Big head boy", monster = "Thief(lvl:5)", tool = "Thief!"},
-["Bob - Buggy pirate(Lvl:30)"] = {npc = "Bob", monster = "Buggy pirate(Lvl:30)", tool = "Let them pay back!"},
-["Sad noob - Attacking Noob(Lvl:100)"] = {npc = "Sad noob", monster = "Attacking Noob(Lvl:100)", tool = "Annoying noobs...."},
-["Sword noob - Attacking Noob(Lvl:100)"] = {npc = "Sword noob", monster = "Attacking Noob(Lvl:100)", tool = "Sword Master"},
-["Gun noob - Attacking Noob(Lvl:100)"] = {npc = "Gun noob", monster = "Attacking Noob(Lvl:100)", tool = "The gunner!"},
-["Injured pirate - Marine(Lvl:200)"] = {npc = "Injured pirate", monster = "Marine(Lvl:200)", tool = "Marines!"},
-["That noob - Luffy(Lvl:1000)"] = {npc = "That noob", monster = "Luffy(Lvl:1000)", tool = "The Strongest..."}
+    ["Big head boy - Thief(lvl:5)"] = {npc = "Big head boy", monster = "Thief(lvl:5)", tool = "Thief!"},
+    ["Bob - Buggy pirate(Lvl:30)"] = {npc = "Bob", monster = "Buggy pirate(Lvl:30)", tool = "Let them pay back!"},
+    ["Sad noob - Attacking Noob(Lvl:100)"] = {npc = "Sad noob", monster = "Attacking Noob(Lvl:100)", tool = "Annoying noobs...."},
+    ["Sword noob - Attacking Noob(Lvl:100)"] = {npc = "Sword noob", monster = "Attacking Noob(Lvl:100)", tool = "Sword Master"},
+    ["Gun noob - Attacking Noob(Lvl:100)"] = {npc = "Gun noob", monster = "Attacking Noob(Lvl:100)", tool = "The gunner!"},
+    ["Injured pirate - Marine(Lvl:200)"] = {npc = "Injured pirate", monster = "Marine(Lvl:200)", tool = "Marines!"},
+    ["That noob - Luffy(Lvl:1000)"] = {npc = "That noob", monster = "Luffy(Lvl:1000)", tool = "The Strongest..."}
 }
 local QuestList = {"None"}
 local QuestOrder = {
-"Big head boy - Thief(lvl:5)",
-"Bob - Buggy pirate(Lvl:30)",
-"Sad noob - Attacking Noob(Lvl:100)",
-"Sword noob - Attacking Noob(Lvl:100)",
-"Gun noob - Attacking Noob(Lvl:100)",
-"Injured pirate - Marine(Lvl:200)",
-"That noob - Luffy(Lvl:1000)"
+    "Big head boy - Thief(lvl:5)",
+    "Bob - Buggy pirate(Lvl:30)",
+    "Sad noob - Attacking Noob(Lvl:100)",
+    "Sword noob - Attacking Noob(Lvl:100)",
+    "Gun noob - Attacking Noob(Lvl:100)",
+    "Injured pirate - Marine(Lvl:200)",
+    "That noob - Luffy(Lvl:1000)"
 }
 for _, displayName in ipairs(QuestOrder) do
     table.insert(QuestList, displayName)
 end
+
 local function expandHitbox(monster)
-    if ExpandedHitboxes[monster] then
-        return
-    end
+    if ExpandedHitboxes[monster] then return end
     ExpandedHitboxes[monster] = true
     pcall(function()
         local hrp = monster:FindFirstChild("HumanoidRootPart")
@@ -2345,64 +2415,50 @@ local function expandHitbox(monster)
             hrp.CanCollide = false
             hrp.BrickColor = BrickColor.new("Really red")
             hrp.Material = Enum.Material.Neon
-            
         end
         for _, part in ipairs(monster:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
-                
             end
-            
         end
-        
     end)
 end
+
 local function smoothTween(targetCFrame)
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        return
-    end
+    if not hrp then return end
     local distance = (targetCFrame.Position - hrp.Position).Magnitude
-    local tweenInfo = TweenInfo.new(distance / 500000, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tweenInfo = TweenInfo.new(distance / 9e6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
     tween:Play()
     tween.Completed:Wait()
 end
+
 local function getClosestPlayer()
     local closest = nil
     local minDist = math.huge
     local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not myHrp then
-        return nil
-    end
+    if not myHrp then return nil end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local dist = (p.Character.HumanoidRootPart.Position - myHrp.Position).Magnitude
             if dist < minDist then
                 minDist = dist
                 closest = p
-                
             end
-            
         end
-        
     end
     return closest
 end
+
 local function startFlying()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local torso = char:WaitForChild("Torso", 5) or char:WaitForChild("UpperTorso", 5)
     local humanoid = char:WaitForChild("Humanoid", 5)
-    if not torso or not humanoid then
-        return
-    end
-    if torso:FindFirstChild("FlyGyro") then
-        torso.FlyGyro:Destroy()
-    end
-    if torso:FindFirstChild("FlyVelocity") then
-        torso.FlyVelocity:Destroy()
-    end
+    if not torso or not humanoid then return end
+    if torso:FindFirstChild("FlyGyro") then torso.FlyGyro:Destroy() end
+    if torso:FindFirstChild("FlyVelocity") then torso.FlyVelocity:Destroy() end
     local bg = Instance.new("BodyGyro")
     bg.Name = "FlyGyro"
     bg.P = 9e4
@@ -2425,377 +2481,388 @@ local function startFlying()
                 local flyDirection = (camera.CFrame.LookVector * -camRelative.Z) + (camera.CFrame.RightVector * camRelative.X)
                 bv.velocity = flyDirection.Unit * FlySpeed
             else
-            bv.velocity = Vector3.new(0, 0, 0)
-            
+                bv.velocity = Vector3.new(0, 0, 0)
+            end
+            bg.cframe = camera.CFrame
         end
-        bg.cframe = camera.CFrame
-        
-    end
-    bg:Destroy()
-    bv:Destroy()
-    if humanoid then
-        humanoid.PlatformStand = false
-    end
-    
-end)
+        bg:Destroy()
+        bv:Destroy()
+        if humanoid then humanoid.PlatformStand = false end
+    end)
 end
-MainTab:CreateToggle("Auto Farm", false, function(state)
+
+local function buyFromNpc(npcName)
+    if not npcName or npcName == "" or not NpcFolder then return end
+    local npc = NpcFolder:FindFirstChild(npcName)
+    if not npc then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    task.spawn(function()
+        local npcHead = npc:FindFirstChild("Head")
+        local npcHrp = npc:FindFirstChild("HumanoidRootPart")
+        local targetPart = npcHead or npcHrp
+        if not targetPart then return end
+        local cd = nil
+        for _, part in ipairs(npc:GetDescendants()) do
+            if part:IsA("ClickDetector") then
+                cd = part
+                break
+            end
+        end
+        if not cd then return end
+        local success, oldCFrame = pcall(function() return targetPart.CFrame end)
+        if success and oldCFrame then
+            pcall(function() targetPart.CFrame = hrp.CFrame * CFrame.new(0, 5, -2) end)
+            task.wait(0.2)
+            fireclickdetector(cd)
+            task.wait(0.5)
+            fireclickdetector(cd)
+            task.wait(0.3)
+            pcall(function() targetPart.CFrame = oldCFrame end)
+        end
+    end)
+end
+
+-- // MAIN TAB ELEMENTS \\ --
+MainTab:CreateToggle("Auto Farm", Config.AutoFarm, function(state)
+    Config.AutoFarm = state
     AutoQuestToggle = state
-    if not state then
-        ExpandedHitboxes = {}
-    end
+    saveSettings()
+    if not state then ExpandedHitboxes = {} end
 end)
 MainTab:CreateLabel("Multi-Quest Settings")
-    MainTab:CreateDropdown("Select Quest 1", QuestList, nil, function(v) SelectedQuest1 = v
-    end)
-    MainTab:CreateDropdown("Select Quest 2", QuestList, nil, function(v) SelectedQuest2 = v
-    end)
-    MainTab:CreateDropdown("Select Quest 3", QuestList, nil, function(v) SelectedQuest3 = v
-    end)
-    MainTab:CreateSlider("Bring Distance", 1, 15, 10, function(value)
-        BringDistance = value
-    end)
+MainTab:CreateDropdown("Select Quest 1", QuestList, Config.SelectedQuest1, function(v) SelectedQuest1 = v; Config.SelectedQuest1 = v; saveSettings() end)
+MainTab:CreateDropdown("Select Quest 2", QuestList, Config.SelectedQuest2, function(v) SelectedQuest2 = v; Config.SelectedQuest2 = v; saveSettings() end)
+MainTab:CreateDropdown("Select Quest 3", QuestList, Config.SelectedQuest3, function(v) SelectedQuest3 = v; Config.SelectedQuest3 = v; saveSettings() end)
+MainTab:CreateDropdown("Select Quest 4", QuestList, Config.SelectedQuest4, function(v) SelectedQuest4 = v; Config.SelectedQuest4 = v; saveSettings() end)
+MainTab:CreateDropdown("Select Quest 5", QuestList, Config.SelectedQuest5, function(v) SelectedQuest5 = v; Config.SelectedQuest5 = v; saveSettings() end)
+MainTab:CreateSlider("Bring Distance", 1, 15, Config.BringDistance, function(value) BringDistance = value; Config.BringDistance = value; saveSettings() end)
 MainTab:CreateLabel("Combat & Inventory")
-local ItemDropdown = MainTab:CreateDropdown("Select Weapon/Item", {}, nil, function(v)
-    SelectedItem = v
+local ItemDropdown = MainTab:CreateDropdown("Select Weapon/Item", {}, Config.SelectedItem, function(v) SelectedItem = v; Config.SelectedItem = v; saveSettings() end)
+MainTab:CreateToggle("Auto Equip Item", Config.EquipToggle, function(state) EquipToggle = state; Config.EquipToggle = state; saveSettings() end)
+MainTab:CreateLabel("Haki Settings")
+MainTab:CreateToggle("Auto Buso (Haki)", Config.AutoBusoToggle, function(state) AutoBusoToggle = state; Config.AutoBusoToggle = state; saveSettings() end)
+MainTab:CreateToggle("Auto Ken (Haki)", Config.AutoKenToggle, function(state)
+    AutoKenToggle = state
+    Config.AutoKenToggle = state
+    saveSettings()
+    if state then startAutoKen() end
 end)
-MainTab:CreateToggle("Auto Equip Item", false, function(state)
-    EquipToggle = state
-end)
-MainTab:CreateToggle("Auto Buso (Haki)", false, function(state)
-    AutoBusoToggle = state
-end)
-MainTab:CreateToggle("Auto Attack", false, function(state)
-    AutoAttackToggle = state
-end)
+MainTab:CreateToggle("Auto Attack", Config.AutoAttackToggle, function(state) AutoAttackToggle = state; Config.AutoAttackToggle = state; saveSettings() end)
 MainTab:CreateLabel("Safe Zone Functions")
-    MainTab:CreateToggle("Safe Mode", false, function(state)
-        SafeModeToggle = state
-    end)
-    
-    TeleportTab:CreateLabel("NPC Teleport")
-    TeleportTab:CreateDropdown("Teleport to NPC", NpcList, nil, function(v)
-        if v and v ~= "" and NpcFolder then
-            local targetNpc = NpcFolder:FindFirstChild(v)
-            if targetNpc then
-                local targetPart = targetNpc:FindFirstChild("HumanoidRootPart") or targetNpc:FindFirstChild("Head")
-                if targetPart then
-                    task.spawn(function()
-                        local targetPosition = targetPart.Position + Vector3.new(0, 300, 0)
-                        local targetCFrame = CFrame.new(targetPosition) * (targetPart.CFrame - targetPart.CFrame.Position)
-                        smoothTween(targetCFrame)
-                        
-                    end)
-                    
-                end
-                
-            end
-            
-        end
-    end)
-    TeleportTab:CreateButton("TP Chests (Farm)", function()
-        task.spawn(function()
-            local character = LocalPlayer.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(-1397.30872, 32.9888573, 4935.0127) task.wait(.2)
-                hrp.CFrame = CFrame.new(38.0509682, 2.449682, 532.326233) task.wait(.2)
-                hrp.CFrame = CFrame.new(35.1173401, -2.74061775, 144.029633) task.wait(.2)
-                hrp.CFrame = CFrame.new(-2315.80054, 75.944519, -4203.24316) task.wait(.2)
-                hrp.CFrame = CFrame.new(2400.57593, 18.8726711, -4002.67212) task.wait(.2)
-                hrp.CFrame = CFrame.new(-2587.79785, 16.8477421, -3950.18359) task.wait(.2)
-                hrp.CFrame = CFrame.new(-2587.80103, 18.8706112, -3950.51001) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4352.83447, 3.52301502, 1333.96191) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4181.38232, 3.52301502, 1247.76196) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4502.63232, 37.0043716, 1245.19348) task.wait(.2)
-                hrp.CFrame = CFrame.new(3170.59546, 22.6311531, 1640.63513) task.wait(.2)
-                hrp.CFrame = CFrame.new(1222.25244, 34.767601, 5026.28418) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4540.95361, 105.322174, 4031.48608) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4539.41406, 105.332174, 4026.31006) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4542.46289, 105.322174, 4036.56641) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4653.76172, 58.7096329, 4089.94312) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4501.02246, 58.7096329, 4055.36157) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4498.99365, 58.7149696, 4048.34961) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4497.38232, 58.7096329, 4042.77832) task.wait(.2)
-                hrp.CFrame = CFrame.new(-4502.91211, 58.7096329, 4061.89453) task.wait(.2)
-                hrp.CFrame = CFrame.new(-1.85192871, 2.36103058, 533.927429)
-                
-            end
-            
-        end)
-    end)
-    PlayerTab:CreateLabel("Movement Functions")
-        PlayerTab:CreateToggle("Fly", false, function(state)
-            getgenv().Flying = state
-            if state then
-                startFlying()
-            end
-        end)
-        PlayerTab:CreateSlider("Fly Speed", 10, 1000, 100, function(value)
-            FlySpeed = value
-        end)
-        PlayerTab:CreateLabel("Player Targets")
-        local PlayerDropdown = PlayerTab:CreateDropdown("Select Player Target", {"All", "Closest"}, nil, function(v)
-            SelectedPlayerTarget = v
-        end)
-        PlayerTab:CreateToggle("Spectate Player", false, function(state)
-            SpectateToggle = state
-        end)
-        PlayerTab:CreateSlider("Player Bring Distance", 1, 15, 10, function(value)
-            PlayerBringDistance = value
-        end)
-        PlayerTab:CreateToggle("Bring Player", false, function(state)
-            PlayerBringToggle = state
-        end)
-        PlayerTab:CreateButton("Teleport to Player", function()
-            local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not myHrp then
-                return
-            end
-            local function tpToOne(targetPlr)
-                if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
-                    pcall(function() myHrp.CFrame = targetPlr.Character.HumanoidRootPart.CFrame
-                    end)
-                    
-                end
-                
-            end
-            if SelectedPlayerTarget == "All" or SelectedPlayerTarget == "Closest" then
-                local closest = getClosestPlayer()
-                if closest then
-                    tpToOne(closest)
-                end
-            else
-            local p = Players:FindFirstChild(SelectedPlayerTarget)
-            if p then
-                tpToOne(p)
-            end
-            
-        end
-    end)
-    local COMMAND_CONFIG_KEY = "SavedCommands_SteveOP.json"
-    local SavedCommands = {}
-    pcall(function()
-        if isfile and isfile(COMMAND_CONFIG_KEY) then
-            local raw = readfile(COMMAND_CONFIG_KEY)
-            if raw and raw ~= "" then
-                SavedCommands = HttpService:JSONDecode(raw)
-                
-            end
-            
-        end
-    end)
-    local CommandInput = ""
-    local SelectedSavedCommand = ""
-    local function saveCommandConfig()
-        pcall(function()
-            if writefile then
-                writefile(COMMAND_CONFIG_KEY, HttpService:JSONEncode(SavedCommands))
-                
-            end
-            
-        end)
-    end
-    local function getSavedList()
-        local list = {}
-        for _, v in ipairs(SavedCommands) do
-            table.insert(list, v)
-            
-        end
-        if #list == 0 then
-            table.insert(list, "None")
-        end
-        return list
-    end
-    local function fireCommand(cmd)
-        local ohString1 = "95181782746KCmdBar"
-        local ohString2 = ":" .. cmd
-        pcall(function()
-            game:GetService("ReplicatedStorage")[utf8.char(98, 7, 10, 7, 10, 7)]:FireServer(ohString1, ohString2)
-            
-        end)
-    end
-    CommandTab:CreateLabel("Command Sender")
-    CommandTab:CreateTextbox("Command Input", "cmds", function(v)
-        CommandInput = v
-    end)
-    CommandTab:CreateButton("Send Command", function()
-        if CommandInput and CommandInput ~= "" then
-            fireCommand(CommandInput)
-            
-        end
-    end)
-    CommandTab:CreateLabel("Saved Commands")
-    local SavedDropdown = CommandTab:CreateDropdown("Saved Commands", getSavedList(), nil, function(v)
-        SelectedSavedCommand = v
-    end)
-    CommandTab:CreateButton("Save Command", function()
-        if CommandInput and CommandInput ~= "" then
-            for _, v in ipairs(SavedCommands) do
-                if v == CommandInput then
-                    return
-                end
-                
-            end
-            table.insert(SavedCommands, CommandInput)
-            saveCommandConfig()
-            SavedDropdown:Refresh(getSavedList())
-            
-        end
-    end)
-    CommandTab:CreateButton("Run Saved Command", function()
-        if SelectedSavedCommand and SelectedSavedCommand ~= "None" and SelectedSavedCommand ~= "" then
-            fireCommand(SelectedSavedCommand)
-            
-        end
-    end)
-    CommandTab:CreateButton("Delete Selected", function()
-        if SelectedSavedCommand and SelectedSavedCommand ~= "None" and SelectedSavedCommand ~= "" then
-            for i, v in ipairs(SavedCommands) do
-                if v == SelectedSavedCommand then
-                    table.remove(SavedCommands, i)
-                    break
-                    
-                end
-                
-            end
-            SelectedSavedCommand = ""
-            saveCommandConfig()
-            SavedDropdown:Refresh(getSavedList())
-            
-        end
-    end)
-    local function updateQuestTools()
-        AssignedTools = {}
-        local currentTools = {}
-        local character = LocalPlayer.Character
-        local function scan(parent)
-            if not parent then
-                return
-            end
-            for _, item in ipairs(parent:GetChildren()) do
-                if item:IsA("Tool") and (string.match(item.ToolTip, "%d+/%d+") or string.find(item.ToolTip, "Finished!")) then
-                    table.insert(currentTools, item)
-                    
-                end
-                
-            end
-            
-        end
-        scan(LocalPlayer:FindFirstChild("Backpack"))
-        scan(character)
-        local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3}
-        for _, tool in ipairs(currentTools) do
-            local nameLower = string.lower(tool.Name)
-            for _, questDisplayName in ipairs(activeQuests) do
-                local data = QuestData[questDisplayName]
-                if data and not AssignedTools[questDisplayName] then
-                    local targetToolLower = string.lower(data.tool)
-                    if string.find(nameLower, targetToolLower, 1, true) then
-                        AssignedTools[questDisplayName] = tool
-                        break
-                        
-                    end
-                    
-                end
-                
-            end
-            
-        end
-    end
-    task.spawn(function()
-        while true do
-            task.wait()
-            if PlayerBringToggle then
-                local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if myHrp then
-                    local function bringOne(targetPlr)
-                        if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
-                            pcall(function()
-                                targetPlr.Character.HumanoidRootPart.CFrame = myHrp.CFrame * CFrame.new(0, 0, -PlayerBringDistance)
-                                
-                            end)
-                            
-                        end
-                        
-                    end
-                    if SelectedPlayerTarget == "All" then
-                        for _, p in ipairs(Players:GetPlayers()) do
-                            if p ~= LocalPlayer then
-                                bringOne(p)
-                            end
-                            
-                        end
-                    elseif SelectedPlayerTarget == "Closest" then
-                        local closest = getClosestPlayer()
-                        if closest then
-                            bringOne(closest)
-                        end
-                    else
-                    local p = Players:FindFirstChild(SelectedPlayerTarget)
-                    if p then
-                        bringOne(p)
-                    end
-                    
-                end
-                
-            end
-            
-        end
-        
+MainTab:CreateToggle("Safe Mode", Config.SafeModeToggle, function(state) SafeModeToggle = state; Config.SafeModeToggle = state; saveSettings() end)
+
+-- // ITEM TAB ELEMENTS \\ --
+ItemTap:CreateLabel("Buy from NPC")
+ItemTap:CreateDropdown("Select NPC", NpcList, Config.SelectedBuyNpc, function(v)
+    SelectedBuyNpc = v
+    Config.SelectedBuyNpc = v
+    saveSettings()
+end)
+ItemTap:CreateButton("Buy", function()
+    if SelectedBuyNpc and SelectedBuyNpc ~= "" then
+        buyFromNpc(SelectedBuyNpc)
     end
 end)
+ItemTap:CreateButton("Bring All item", function()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if (v:IsA("TouchInterest") or v:IsA("TouchTransmitter") or v.Name == "TouchInterest" or v.Name == "TouchTransmitter") and v.Parent and v.Parent.Name == "Handle" then
+                local isInsideFolder = false
+                local current = v.Parent
+                while current and current ~= workspace do
+                    if current:IsA("Folder") then
+                        isInsideFolder = true
+                        break
+                    end
+                    current = current.Parent
+                end
+                if not isInsideFolder then
+                    pcall(function()
+                        firetouchinterest(hrp, v.Parent, 0)
+                        task.wait()
+                        firetouchinterest(hrp, v.Parent, 1)
+                    end)
+                end
+            end
+        end
+    end
+end)
+ItemTap:CreateButton("Drop All", function()
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if char and backpack then
+        for _, tool in pairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                tool.Parent = char
+            end
+        end
+        task.wait(0.1)
+        pcall(function()
+            keypress(Enum.KeyCode.Backspace)
+            task.wait()
+            keyrelease(Enum.KeyCode.Backspace)
+        end)
+    end
+end)
+ItemTap:CreateToggle("Auto Buy Fruit", Config.AutoBuyFruitToggle, function(state)
+    AutoBuyFruitToggle = state
+    Config.AutoBuyFruitToggle = state
+    saveSettings()
+end)
+
+-- // STATUS TAB ELEMENTS (เพิ่ม Melee เรียบร้อยแล้ว) \\ --
+StatusTap:CreateLabel("Auto Rejoin Settings")
+local currentStatValue = nil
+
+StatusTap:CreateDropdown("Auto Rejoin on Stat Increase", {"nil", "Melee", "Defense", "Gun", "DevilFruit", "Sword"}, Config.SelectedStat, function(v)
+    Config.SelectedStat = v
+    currentStatValue = nil -- รีเซ็ตค่าการตรวจสอบเพื่อให้จดจำค่าปัจจุบันใหม่
+    saveSettings()
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        if Config.SelectedStat and Config.SelectedStat ~= "nil" then
+            local statsFolder = LocalPlayer:FindFirstChild("Stats")
+            local statObj = statsFolder and statsFolder:FindFirstChild(Config.SelectedStat)
+            if statObj and statObj:IsA("ValueBase") then
+                if currentStatValue == nil then
+                    currentStatValue = statObj.Value
+                elseif statObj.Value > currentStatValue then
+                    -- บันทึกข้อมูลและ Rejoin ทันทีเมื่อค่า Status เปลี่ยนแปลงเพิ่มขึ้น
+                    saveSettings()
+                    task.wait(0.5)
+                    pcall(function()
+                        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                    end)
+                end
+            end
+        else
+            currentStatValue = nil
+        end
+    end
+end)
+
+-- // TELEPORT TAB ELEMENTS \\ --
+TeleportTab:CreateLabel("NPC Teleport")
+TeleportTab:CreateDropdown("Teleport to NPC", NpcList, nil, function(v)
+    if v and v ~= "" and NpcFolder then
+        local targetNpc = NpcFolder:FindFirstChild(v)
+        if targetNpc then
+            local targetPart = targetNpc:FindFirstChild("HumanoidRootPart") or targetNpc:FindFirstChild("Head")
+            if targetPart then
+                task.spawn(function()
+                    local targetPosition = targetPart.Position + Vector3.new(0, 300, 0)
+                    local targetCFrame = CFrame.new(targetPosition) * (targetPart.CFrame - targetPart.CFrame.Position)
+                    smoothTween(targetCFrame)
+                end)
+            end
+        end
+    end
+end)
+TeleportTab:CreateButton("TP Chests (Farm)", function()
+    task.spawn(function()
+        local character = LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(-1397.30872, 32.9888573, 4935.0127) task.wait(.2)
+            hrp.CFrame = CFrame.new(38.0509682, 2.449682, 532.326233) task.wait(.2)
+            hrp.CFrame = CFrame.new(35.1173401, -2.74061775, 144.029633) task.wait(.2)
+            hrp.CFrame = CFrame.new(-2315.80054, 75.944519, -4203.24316) task.wait(.2)
+            hrp.CFrame = CFrame.new(2400.57593, 18.8726711, -4002.67212) task.wait(.2)
+            hrp.CFrame = CFrame.new(-2587.79785, 16.8477421, -3950.18359) task.wait(.2)
+            hrp.CFrame = CFrame.new(-2587.80103, 18.8706112, -3950.51001) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4352.83447, 3.52301502, 1333.96191) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4181.38232, 3.52301502, 1247.76196) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4502.63232, 37.0043716, 1245.19348) task.wait(.2)
+            hrp.CFrame = CFrame.new(3170.59546, 22.6311531, 1640.63513) task.wait(.2)
+            hrp.CFrame = CFrame.new(1222.25244, 34.767601, 5026.28418) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4540.95361, 105.322174, 4031.48608) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4539.41406, 105.332174, 4026.31006) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4542.46289, 105.322174, 4036.56641) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4653.76172, 58.7096329, 4089.94312) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4501.02246, 58.7096329, 4055.36157) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4498.99365, 58.7149696, 4048.34961) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4497.38232, 58.7096329, 4042.77832) task.wait(.2)
+            hrp.CFrame = CFrame.new(-4502.91211, 58.7096329, 4061.89453) task.wait(.2)
+            hrp.CFrame = CFrame.new(-1.85192871, 2.36103058, 533.927429)
+        end
+    end)
+end)
+
+-- // PLAYER TAB ELEMENTS \\ --
+PlayerTab:CreateLabel("Movement Functions")
+PlayerTab:CreateToggle("Fly", Config.Flying, function(state)
+    Config.Flying = state
+    getgenv().Flying = state
+    saveSettings()
+    if state then startFlying() end
+end)
+PlayerTab:CreateSlider("Fly Speed", 10, 1000, Config.FlySpeed, function(value) FlySpeed = value; Config.FlySpeed = value; saveSettings() end)
+PlayerTab:CreateLabel("Player Targets")
+local PlayerDropdown = PlayerTab:CreateDropdown("Select Player Target", {"All", "Closest"}, Config.SelectedPlayerTarget, function(v)
+    SelectedPlayerTarget = v
+    Config.SelectedPlayerTarget = v
+    saveSettings()
+end)
+PlayerTab:CreateToggle("Spectate Player", Config.SpectateToggle, function(state) SpectateToggle = state; Config.SpectateToggle = state; saveSettings() end)
+PlayerTab:CreateSlider("Player Bring Distance", 1, 15, Config.PlayerBringDistance, function(value) PlayerBringDistance = value; Config.PlayerBringDistance = value; saveSettings() end)
+PlayerTab:CreateToggle("Bring Player", Config.PlayerBringToggle, function(state) PlayerBringToggle = state; Config.PlayerBringToggle = state; saveSettings() end)
+PlayerTab:CreateButton("Teleport to Player", function()
+    local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return end
+    local function tpToOne(targetPlr)
+        if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function() myHrp.CFrame = targetPlr.Character.HumanoidRootPart.CFrame end)
+        end
+    end
+    if SelectedPlayerTarget == "All" or SelectedPlayerTarget == "Closest" then
+        local closest = getClosestPlayer()
+        if closest then tpToOne(closest) end
+    else
+        local p = Players:FindFirstChild(SelectedPlayerTarget)
+        if p then tpToOne(p) end
+    end
+end)
+
+-- // COMMAND TAB ELEMENTS \\ --
+local COMMAND_CONFIG_KEY = "SavedCommands_SteveOP.json"
+local SavedCommands = {}
+pcall(function()
+    if isfile and isfile(COMMAND_CONFIG_KEY) then
+        local raw = readfile(COMMAND_CONFIG_KEY)
+        if raw and raw ~= "" then SavedCommands = HttpService:JSONDecode(raw) end
+    end
+end)
+local CommandInput = ""
+local SelectedSavedCommand = ""
+local function saveCommandConfig()
+    pcall(function() if writefile then writefile(COMMAND_CONFIG_KEY, HttpService:JSONEncode(SavedCommands)) end end)
+end
+local function getSavedList()
+    local list = {}
+    for _, v in ipairs(SavedCommands) do table.insert(list, v) end
+    if #list == 0 then table.insert(list, "None") end
+    return list
+end
+local function fireCommand(cmd)
+    local ohString1 = "95181782746KCmdBar"
+    local ohString2 = ":" .. cmd
+    pcall(function() game:GetService("ReplicatedStorage")[utf8.char(98, 7, 10, 7, 10, 7)]:FireServer(ohString1, ohString2) end)
+end
+CommandTab:CreateLabel("Command Sender")
+CommandTab:CreateTextbox("Command Input", "cmds", function(v) CommandInput = v end)
+CommandTab:CreateButton("Send Command", function()
+    if CommandInput and CommandInput ~= "" then fireCommand(CommandInput) end
+end)
+CommandTab:CreateLabel("Saved Commands")
+local SavedDropdown = CommandTab:CreateDropdown("Saved Commands", getSavedList(), nil, function(v) SelectedSavedCommand = v end)
+CommandTab:CreateButton("Save Command", function()
+    if CommandInput and CommandInput ~= "" then
+        for _, v in ipairs(SavedCommands) do if v == CommandInput then return end end
+        table.insert(SavedCommands, CommandInput)
+        saveCommandConfig()
+        SavedDropdown:Refresh(getSavedList())
+    end
+end)
+CommandTab:CreateButton("Run Saved Command", function()
+    if SelectedSavedCommand and SelectedSavedCommand ~= "None" and SelectedSavedCommand ~= "" then fireCommand(SelectedSavedCommand) end
+end)
+CommandTab:CreateButton("Delete Selected", function()
+    if SelectedSavedCommand and SelectedSavedCommand ~= "None" and SelectedSavedCommand ~= "" then
+        for i, v in ipairs(SavedCommands) do if v == SelectedSavedCommand then table.remove(SavedCommands, i) break end end
+        SelectedSavedCommand = ""
+        saveCommandConfig()
+        SavedDropdown:Refresh(getSavedList())
+    end
+end)
+
+-- // BACKGROUND THREADS \\ --
+local function updateQuestTools()
+    AssignedTools = {}
+    local currentTools = {}
+    local character = LocalPlayer.Character
+    local function scan(parent)
+        if not parent then return end
+        for _, item in ipairs(parent:GetChildren()) do
+            if item:IsA("Tool") and (string.match(item.ToolTip, "%d+/%d+") or string.find(item.ToolTip, "Finished!")) then
+                table.insert(currentTools, item)
+            end
+        end
+    end
+    scan(LocalPlayer:FindFirstChild("Backpack"))
+    scan(character)
+    local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3, SelectedQuest4, SelectedQuest5}
+    for _, tool in ipairs(currentTools) do
+        local nameLower = string.lower(tool.Name)
+        for _, questDisplayName in ipairs(activeQuests) do
+            local data = QuestData[questDisplayName]
+            if data and not AssignedTools[questDisplayName] then
+                local targetToolLower = string.lower(data.tool)
+                if string.find(nameLower, targetToolLower, 1, true) then
+                    AssignedTools[questDisplayName] = tool
+                    break
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait()
+        if PlayerBringToggle then
+            local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                local function bringOne(targetPlr)
+                    if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+                        pcall(function() targetPlr.Character.HumanoidRootPart.CFrame = myHrp.CFrame * CFrame.new(0, 0, -PlayerBringDistance) end)
+                    end
+                end
+                if SelectedPlayerTarget == "All" then
+                    for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then bringOne(p) end end
+                elseif SelectedPlayerTarget == "Closest" then
+                    local closest = getClosestPlayer()
+                    if closest then bringOne(closest) end
+                else
+                    local p = Players:FindFirstChild(SelectedPlayerTarget)
+                    if p then bringOne(p) end
+                end
+            end
+        end
+    end
+end)
+
 task.spawn(function()
     while true do
         task.wait()
         local camera = workspace.CurrentCamera
         if SpectateToggle then
             local targetPlr = nil
-            if SelectedPlayerTarget == "Closest" or SelectedPlayerTarget == "All" then
-                targetPlr = getClosestPlayer()
-            else
-            targetPlr = Players:FindFirstChild(SelectedPlayerTarget)
-            
-        end
-        if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("Humanoid") then
-            camera.CameraSubject = targetPlr.Character.Humanoid
+            if SelectedPlayerTarget == "Closest" or SelectedPlayerTarget == "All" then targetPlr = getClosestPlayer() else targetPlr = Players:FindFirstChild(SelectedPlayerTarget) end
+            if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("Humanoid") then camera.CameraSubject = targetPlr.Character.Humanoid
+            else if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then camera.CameraSubject = LocalPlayer.Character.Humanoid end end
         else
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            camera.CameraSubject = LocalPlayer.Character.Humanoid
-            
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and camera.CameraSubject ~= LocalPlayer.Character.Humanoid then camera.CameraSubject = LocalPlayer.Character.Humanoid end
         end
-        
     end
-else
-if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and camera.CameraSubject ~= LocalPlayer.Character.Humanoid then
-    camera.CameraSubject = LocalPlayer.Character.Humanoid
-    
-end
-
-end
-
-end
 end)
+
 task.spawn(function()
     local lastPlayerListStr = ""
     while true do
         task.wait(1.5)
         local pList = {"All", "Closest"}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                table.insert(pList, p.Name)
-            end
-            
-        end
+        for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then table.insert(pList, p.Name) end end
         local currentStr = table.concat(pList, ",")
-        if currentStr ~= lastPlayerListStr then
-            lastPlayerListStr = currentStr
-            PlayerDropdown:Refresh(pList)
-            
-        end
-        
+        if currentStr ~= lastPlayerListStr then lastPlayerListStr = currentStr PlayerDropdown:Refresh(pList) end
     end
 end)
+
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -2804,19 +2871,13 @@ task.spawn(function()
             if character and not character:FindFirstChild("Buso") then
                 pcall(function()
                     local backpack = LocalPlayer:FindFirstChild("Backpack")
-                    if backpack and backpack:FindFirstChild("Haki") and backpack.Haki:FindFirstChild("Event") then
-                        backpack.Haki.Event:FireServer("Buso")
-                        
-                    end
-                    
+                    if backpack and backpack:FindFirstChild("Haki") and backpack.Haki:FindFirstChild("Event") then backpack.Haki.Event:FireServer("Buso") end
                 end)
-                
             end
-            
         end
-        
     end
 end)
+
 task.spawn(function()
     while true do
         task.wait()
@@ -2825,7 +2886,8 @@ task.spawn(function()
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local humanoid = char and char:FindFirstChildOfClass("Humanoid")
             if not safePart and hrp then
-                safePosition = hrp.Position + Vector3.new(0, 2000, 0)
+                originalCFrame = hrp.CFrame
+                safePosition = hrp.Position + Vector3.new(0, 100000, 0)
                 safePart = Instance.new("Part")
                 safePart.Size = Vector3.new(30, 1, 30)
                 safePart.CFrame = CFrame.new(safePosition)
@@ -2833,27 +2895,22 @@ task.spawn(function()
                 safePart.Material = Enum.Material.SmoothPlastic
                 safePart.Transparency = 1
                 safePart.Parent = workspace
-                
             end
             if hrp and humanoid and humanoid.Health > 0 and safePosition then
-                if (hrp.Position - safePosition).Magnitude > 5 then
-                    hrp.CFrame = CFrame.new(safePosition + Vector3.new(0, 3, 0))
-                    
-                end
-                
+                if (hrp.Position - safePosition).Magnitude > 5 then hrp.CFrame = CFrame.new(safePosition + Vector3.new(0, 3, 0)) end
             end
         else
-        if safePart then
-            safePart:Destroy()
-            safePart = nil
-            safePosition = nil
-            
+            if safePart then
+                safePart:Destroy() safePart = nil safePosition = nil
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp and originalCFrame then hrp.CFrame = originalCFrame end
+                originalCFrame = nil
+            end
         end
-        
     end
-    
-end
 end)
+
 task.spawn(function()
     while true do
         task.wait()
@@ -2861,52 +2918,29 @@ task.spawn(function()
             local character = LocalPlayer.Character
             if character then
                 local tool = character:FindFirstChildOfClass("Tool")
-                if tool then
-                    tool:Activate()
-                else
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(800, 400))
-                
+                if tool then tool:Activate()
+                else VirtualUser:CaptureController() VirtualUser:ClickButton1(Vector2.new(800, 400)) end
             end
-            
         end
-        
     end
-    
-end
 end)
+
 task.spawn(function()
     local lastListStr = ""
     while true do
         task.wait()
         local toolList = {}
         if LocalPlayer:FindFirstChild("Backpack") then
-            for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    table.insert(toolList, item.Name)
-                end
-                
-            end
-            
+            for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do if item:IsA("Tool") then table.insert(toolList, item.Name) end end
         end
         if LocalPlayer.Character then
-            for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
-                if item:IsA("Tool") then
-                    table.insert(toolList, item.Name)
-                end
-                
-            end
-            
+            for _, item in ipairs(LocalPlayer.Character:GetChildren()) do if item:IsA("Tool") then table.insert(toolList, item.Name) end end
         end
         local currentListStr = table.concat(toolList, ",")
-        if currentListStr ~= lastListStr then
-            lastListStr = currentListStr
-            ItemDropdown:Refresh(toolList)
-            
-        end
-        
+        if currentListStr ~= lastListStr then lastListStr = currentListStr ItemDropdown:Refresh(toolList) end
     end
 end)
+
 task.spawn(function()
     while true do
         task.wait()
@@ -2916,24 +2950,19 @@ task.spawn(function()
             if humanoid and humanoid.Health > 0 then
                 if not character:FindFirstChild(SelectedItem) then
                     local tool = LocalPlayer.Backpack:FindFirstChild(SelectedItem)
-                    if tool and tool:IsA("Tool") then
-                        humanoid:EquipTool(tool)
-                    end
-                    
+                    if tool and tool:IsA("Tool") then humanoid:EquipTool(tool) end
                 end
-                
             end
-            
         end
-        
     end
 end)
+
 task.spawn(function()
     while true do
         task.wait(0.5)
         if AutoQuestToggle then
             updateQuestTools()
-            local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3}
+            local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3, SelectedQuest4, SelectedQuest5}
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             for _, questDisplayName in ipairs(activeQuests) do
@@ -2949,64 +2978,49 @@ task.spawn(function()
                             if cd and hrp then
                                 ClickingNPC[npcName] = true
                                 task.spawn(function()
-                                    local success, oldCFrame = pcall(function() return npcHead.CFrame
-                                    end)
+                                    local success, oldCFrame = pcall(function() return npcHead.CFrame end)
                                     if success and oldCFrame then
-                                        pcall(function() npcHead.CFrame = hrp.CFrame * CFrame.new(0, 5, -2)
-                                        end)
+                                        pcall(function() npcHead.CFrame = hrp.CFrame * CFrame.new(0, 5, -2) end)
                                         task.wait(0.2)
                                         fireclickdetector(cd)
                                         task.wait(0.5)
                                         fireclickdetector(cd)
                                         task.wait(0.3)
-                                        pcall(function() npcHead.CFrame = oldCFrame
-                                        end)
-                                        
+                                        pcall(function() npcHead.CFrame = oldCFrame end)
                                     end
                                     task.wait(0.5)
                                     ClickingNPC[npcName] = false
-                                    
                                 end)
-                                
                             end
-                            
                         end
                         break
                     else
-                    local isFinished = string.find(questTool.ToolTip, "Finished!") or questTool.ToolTip == "Finished!,Click to get reward!"
-                    if isFinished then
-                        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-                        if humanoid and humanoid.Health > 0 then
-                            IsDeliveringQuest = true
-                            if questTool.Parent == LocalPlayer.Backpack then
-                                humanoid:EquipTool(questTool)
+                        local isFinished = string.find(questTool.ToolTip, "Finished!") or questTool.ToolTip == "Finished!,Click to get reward!"
+                        if isFinished then
+                            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health > 0 then
+                                IsDeliveringQuest = true
+                                if questTool.Parent == LocalPlayer.Backpack then humanoid:EquipTool(questTool) end
+                                task.wait(0.2)
+                                questTool:Activate()
+                                task.wait(0.3)
+                                IsDeliveringQuest = false
                             end
-                            task.wait(0.2)
-                            questTool:Activate()
-                            task.wait(0.3)
-                            IsDeliveringQuest = false
-                            
+                            break
                         end
-                        break
-                        
                     end
-                    
                 end
-                
             end
-            
         end
-        
     end
-    
-end
 end)
+
 task.spawn(function()
     while true do
         task.wait()
         if AutoQuestToggle then
             updateQuestTools()
-            local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3}
+            local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3, SelectedQuest4, SelectedQuest5}
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -3031,35 +3045,22 @@ task.spawn(function()
                                                         expandHitbox(monster)
                                                         m_hrp.CanCollide = false
                                                     else
-                                                    pcall(function() monster:Destroy()
-                                                    end)
-                                                    
+                                                        pcall(function() monster:Destroy() end)
+                                                    end
                                                 end
-                                                
                                             end
-                                            
                                         end
-                                        
                                     end
-                                    
                                 end
-                                
                             end
-                            
                         end
-                        
                     end
-                    
                 end
-                
             end
-            
         end
-        
     end
-    
-end
 end)
+
 task.spawn(function()
     while true do
         task.wait()
@@ -3067,7 +3068,7 @@ task.spawn(function()
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3}
+                local activeQuests = {SelectedQuest1, SelectedQuest2, SelectedQuest3, SelectedQuest4, SelectedQuest5}
                 for i, questDisplayName in ipairs(activeQuests) do
                     local data = QuestData[questDisplayName]
                     if data and NpcFolder then
@@ -3077,30 +3078,51 @@ task.spawn(function()
                             local npcHrp = npc:FindFirstChild("HumanoidRootPart")
                             if npcHrp then
                                 pcall(function()
-                                    if not QuestNpcOriginalCFrame[npcName] then
-                                        QuestNpcOriginalCFrame[npcName] = npcHrp.CFrame
-                                        
-                                    end
+                                    if not QuestNpcOriginalCFrame[npcName] then QuestNpcOriginalCFrame[npcName] = npcHrp.CFrame end
                                     local offset = i * 5
                                     npcHrp.CFrame = hrp.CFrame * CFrame.new(offset, 0, 0)
-                                    
                                 end)
-                                
                             end
-                            
                         end
-                        
                     end
-                    
                 end
-                
             end
-            
         end
-        
     end
 end)
-    end,
+
+task.spawn(function()
+    while true do
+        task.wait()
+        if AutoBuyFruitToggle and NpcFolder and not ClickingFruit then
+            local seller = NpcFolder:FindFirstChild("Fruit Seller")
+            if seller then
+                local head = seller:FindFirstChild("Head")
+                local cd1 = head and head:FindFirstChildOfClass("ClickDetector")
+                local buyPart = seller:FindFirstChild("Beli|Price:1500000")
+                local buyHead = buyPart and buyPart:FindFirstChild("Head")
+                local cd2 = buyHead and buyHead:FindFirstChildOfClass("ClickDetector")
+                if cd1 and cd2 then
+                    ClickingFruit = true
+                    task.spawn(function()
+                        fireclickdetector(cd1)
+                        task.wait(0.3)
+                        fireclickdetector(cd2)
+                        task.wait(0.3)
+                        fireclickdetector(cd2)
+                        task.wait(0.5)
+                        ClickingFruit = false
+                    end)
+                end
+            end
+        end
+    end
+end)
+
+-- // เริ่มทำงานลูปต่างๆ ตามค่าเริ่มต้นจากการโหลดเซฟ Config \\ --
+if Config.AutoKenToggle then startAutoKen() end
+if Config.Flying then task.spawn(startFlying) end 
+end,
     [555] = function()
         print("Map 3 loaded")
         -- โค้ดแมพ 3
