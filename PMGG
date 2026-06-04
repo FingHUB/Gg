@@ -2231,8 +2231,8 @@ local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local Debris = game:GetService("Debris")
 
--- // ระบบสำหรับจัดการ Config การเซฟข้อมูลทั้งหมด \\ --
 local CONFIG_FILE = "SteveOP_Settings.json"
 local Config = {
     AutoFarm = false,
@@ -2256,10 +2256,13 @@ local Config = {
     SpectateToggle = false,
     PlayerBringDistance = 10,
     PlayerBringToggle = false,
-    SelectedStat = "nil" -- ค่าเริ่มต้นเป็นข้อความ "nil" เพื่อความปลอดภัยในการจัดเก็บ JSON
+    SelectedStat = "nil",
+    AimbotAll = false,
+    AimbotLimitDistance = false,
+    AimbotMaxDistance = 100,
+    AimbotTargetMode = "Closest"
 }
 
--- โหลดข้อมูล Config เก่าที่มีการบันทึกไว้
 pcall(function()
     if isfile and isfile(CONFIG_FILE) then
         local decoded = HttpService:JSONDecode(readfile(CONFIG_FILE))
@@ -2277,7 +2280,6 @@ local function saveSettings()
     end)
 end
 
--- ซิงค์ตัวแปรเดิมของสคริปต์ให้ดึงค่ามาจาก Config
 local AutoQuestToggle = Config.AutoFarm
 local SelectedQuest1 = Config.SelectedQuest1
 local SelectedQuest2 = Config.SelectedQuest2
@@ -2311,6 +2313,10 @@ local ExpandedHitboxes = {}
 local BringNpcToggle = false
 local QuestNpcOriginalCFrame = {}
 local ClickingFruit = false
+
+local targetedEvents = {}
+local currentCircle = nil
+local currentAimbotTargetHRP = nil
 
 local function startAutoKen()
     task.spawn(function()
@@ -2348,91 +2354,63 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     task.spawn(bypassAntiCheat, character)
 end)
 
-local Window = Library:CreateWindow("Steve One Piece", {
-    Logo = "rbxassetid://98985755793415",
-    ThemeColor = Color3.fromRGB(255, 0, 0),
-    BackgroundImage = "rbxassetid://",
-    ImageTransparency = 0.4,
-    ToggleConfig = {Text = ""}
-})
-
-local NpcFolder = nil
-for _, child in ipairs(workspace:GetChildren()) do
-    if child:IsA("Folder") and child:FindFirstChild("Big head boy", true) then
-        NpcFolder = child
-        break
-    end
-end
-if not NpcFolder then
-    NpcFolder = workspace:FindFirstChild("Npcs")
-end
-
-local NpcList = {}
-if NpcFolder then
-    for _, npc in ipairs(NpcFolder:GetChildren()) do
-        table.insert(NpcList, npc.Name)
-    end
-end
-
-local MainTab = Window:CreateCategory("Main", "lucide-user")
-local ItemTap = Window:CreateCategory("Item", "lucide-shopping-bag")
-local StatusTap = Window:CreateCategory("Status","lucide-bar-chart")
-local TeleportTab = Window:CreateCategory("Teleport", "lucide-map-pin")
-local PlayerTab = Window:CreateCategory("Player", "lucide-users")
-local CommandTab = Window:CreateCategory("Command", "lucide-terminal")
-
-local QuestData = {
-    ["Big head boy - Thief(lvl:5)"] = {npc = "Big head boy", monster = "Thief(lvl:5)", tool = "Thief!"},
-    ["Bob - Buggy pirate(Lvl:30)"] = {npc = "Bob", monster = "Buggy pirate(Lvl:30)", tool = "Let them pay back!"},
-    ["Sad noob - Attacking Noob(Lvl:100)"] = {npc = "Sad noob", monster = "Attacking Noob(Lvl:100)", tool = "Annoying noobs...."},
-    ["Sword noob - Attacking Noob(Lvl:100)"] = {npc = "Sword noob", monster = "Attacking Noob(Lvl:100)", tool = "Sword Master"},
-    ["Gun noob - Attacking Noob(Lvl:100)"] = {npc = "Gun noob", monster = "Attacking Noob(Lvl:100)", tool = "The gunner!"},
-    ["Injured pirate - Marine(Lvl:200)"] = {npc = "Injured pirate", monster = "Marine(Lvl:200)", tool = "Marines!"},
-    ["That noob - Luffy(Lvl:1000)"] = {npc = "That noob", monster = "Luffy(Lvl:1000)", tool = "The Strongest..."}
-}
-local QuestList = {"None"}
-local QuestOrder = {
-    "Big head boy - Thief(lvl:5)",
-    "Bob - Buggy pirate(Lvl:30)",
-    "Sad noob - Attacking Noob(Lvl:100)",
-    "Sword noob - Attacking Noob(Lvl:100)",
-    "Gun noob - Attacking Noob(Lvl:100)",
-    "Injured pirate - Marine(Lvl:200)",
-    "That noob - Luffy(Lvl:1000)"
-}
-for _, displayName in ipairs(QuestOrder) do
-    table.insert(QuestList, displayName)
-end
-
-local function expandHitbox(monster)
-    if ExpandedHitboxes[monster] then return end
-    ExpandedHitboxes[monster] = true
-    pcall(function()
-        local hrp = monster:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
-            hrp.Transparency = 1
-            hrp.CanCollide = false
-            hrp.BrickColor = BrickColor.new("Really red")
-            hrp.Material = Enum.Material.Neon
-        end
-        for _, part in ipairs(monster:GetChildren()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end)
-end
-
-local function smoothTween(targetCFrame)
+local function showDistanceCircle(radius)
+    if currentCircle then currentCircle:Destroy() end
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    local distance = (targetCFrame.Position - hrp.Position).Magnitude
-    local tweenInfo = TweenInfo.new(distance / 9e6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
+    
+    local circle = Instance.new("Part")
+    circle.Shape = Enum.PartType.Cylinder
+    circle.Size = Vector3.new(0.4, radius * 2, radius * 2)
+    circle.Material = Enum.Material.Neon
+    circle.BrickColor = BrickColor.new("Really red")
+    circle.Transparency = 0.4
+    circle.Anchored = true
+    circle.CanCollide = false
+    circle.CFrame = CFrame.new(hrp.Position - Vector3.new(0, 2.8, 0)) * CFrame.Angles(0, 0, math.rad(90))
+    circle.Parent = workspace
+    currentCircle = circle
+    
+    TweenService:Create(circle, TweenInfo.new(1, Enum.EasingStyle.Linear), {Transparency = 1}):Play()
+    Debris:AddItem(circle, 1)
+end
+
+local function getAimbotTarget()
+    local char = LocalPlayer.Character
+    local myHrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return nil end
+    
+    local validTargets = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local humanoid = p.Character:FindFirstChildOfClass("Humanoid")
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and humanoid.Health > 0 and hrp then
+                local dist = (hrp.Position - myHrp.Position).Magnitude
+                if not Config.AimbotLimitDistance or dist <= Config.AimbotMaxDistance then
+                    table.insert(validTargets, {player = p, distance = dist, part = hrp})
+                end
+            end
+        end
+    end
+    
+    if #validTargets == 0 then return nil end
+    
+    if Config.AimbotTargetMode == "Closest" then
+        table.sort(validTargets, function(a, b) return a.distance < b.distance end)
+        return validTargets[1].player
+    elseif Config.AimbotTargetMode == "Random" then
+        return validTargets[math.random(1, #validTargets)].player
+    else
+        for _, target in ipairs(validTargets) do
+            if target.player.Name == Config.AimbotTargetMode then
+                return target.player
+            end
+        end
+    end
+    return nil
 end
 
 local function getClosestPlayer()
@@ -2451,6 +2429,24 @@ local function getClosestPlayer()
     end
     return closest
 end
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    if method == "FireServer" and args[1] == "MouseCFrame" and not checkcaller() then
+        if Config.AimbotAll and currentAimbotTargetHRP then
+            if not targetedEvents[self] then
+                targetedEvents[self] = true
+            else
+                return
+            end
+        end
+    end
+    
+    return oldNamecall(self, ...)
+end)
 
 local function startFlying()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -2524,7 +2520,94 @@ local function buyFromNpc(npcName)
     end)
 end
 
--- // MAIN TAB ELEMENTS \\ --
+local Window = Library:CreateWindow("Steve One Piece", {
+    Logo = "rbxassetid://98985755793415",
+    ThemeColor = Color3.fromRGB(255, 0, 0),
+    BackgroundImage = "rbxassetid://",
+    ImageTransparency = 0.4,
+    ToggleConfig = {Text = ""}
+})
+
+local NpcFolder = nil
+for _, child in ipairs(workspace:GetChildren()) do
+    if child:IsA("Folder") and child:FindFirstChild("Big head boy", true) then
+        NpcFolder = child
+        break
+    end
+end
+if not NpcFolder then
+    NpcFolder = workspace:FindFirstChild("Npcs")
+end
+
+local NpcList = {}
+if NpcFolder then
+    for _, npc in ipairs(NpcFolder:GetChildren()) do
+        table.insert(NpcList, npc.Name)
+    end
+end
+
+local MainTab = Window:CreateCategory("Main", "lucide-user")
+local AimbotTab = Window:CreateCategory("Aimbot", "lucide-target")
+local ItemTap = Window:CreateCategory("Item", "lucide-shopping-bag")
+local StatusTap = Window:CreateCategory("Status","lucide-bar-chart")
+local TeleportTab = Window:CreateCategory("Teleport", "lucide-map-pin")
+local PlayerTab = Window:CreateCategory("Player", "lucide-users")
+local CommandTab = Window:CreateCategory("Command", "lucide-terminal")
+
+local QuestData = {
+    ["Big head boy - Thief(lvl:5)"] = {npc = "Big head boy", monster = "Thief(lvl:5)", tool = "Thief!"},
+    ["Bob - Buggy pirate(Lvl:30)"] = {npc = "Bob", monster = "Buggy pirate(Lvl:30)", tool = "Let them pay back!"},
+    ["Sad noob - Attacking Noob(Lvl:100)"] = {npc = "Sad noob", monster = "Attacking Noob(Lvl:100)", tool = "Annoying noobs...."},
+    ["Sword noob - Attacking Noob(Lvl:100)"] = {npc = "Sword noob", monster = "Attacking Noob(Lvl:100)", tool = "Sword Master"},
+    ["Gun noob - Attacking Noob(Lvl:100)"] = {npc = "Gun noob", monster = "Attacking Noob(Lvl:100)", tool = "The gunner!"},
+    ["Injured pirate - Marine(Lvl:200)"] = {npc = "Injured pirate", monster = "Marine(Lvl:200)", tool = "Marines!"},
+    ["That noob - Luffy(Lvl:1000)"] = {npc = "That noob", monster = "Luffy(Lvl:1000)", tool = "The Strongest..."}
+}
+local QuestList = {"None"}
+local QuestOrder = {
+    "Big head boy - Thief(lvl:5)",
+    "Bob - Buggy pirate(Lvl:30)",
+    "Sad noob - Attacking Noob(Lvl:100)",
+    "Sword noob - Attacking Noob(Lvl:100)",
+    "Gun noob - Attacking Noob(Lvl:100)",
+    "Injured pirate - Marine(Lvl:200)",
+    "That noob - Luffy(Lvl:1000)"
+}
+for _, displayName in ipairs(QuestOrder) do
+    table.insert(QuestList, displayName)
+end
+
+local function expandHitbox(monster)
+    if ExpandedHitboxes[monster] then return end
+    ExpandedHitboxes[monster] = true
+    pcall(function()
+        local hrp = monster:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+            hrp.Transparency = 1
+            hrp.CanCollide = false
+            hrp.BrickColor = BrickColor.new("Really red")
+            hrp.Material = Enum.Material.Neon
+        end
+        for _, part in ipairs(monster:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function smoothTween(targetCFrame)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    local tweenInfo = TweenInfo.new(distance / 9e6, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
 MainTab:CreateToggle("Auto Farm", Config.AutoFarm, function(state)
     Config.AutoFarm = state
     AutoQuestToggle = state
@@ -2553,7 +2636,26 @@ MainTab:CreateToggle("Auto Attack", Config.AutoAttackToggle, function(state) Aut
 MainTab:CreateLabel("Safe Zone Functions")
 MainTab:CreateToggle("Safe Mode", Config.SafeModeToggle, function(state) SafeModeToggle = state; Config.SafeModeToggle = state; saveSettings() end)
 
--- // ITEM TAB ELEMENTS \\ --
+AimbotTab:CreateLabel("Universal Aimbot System")
+AimbotTab:CreateToggle("Aimbot", Config.AimbotAll, function(state)
+    Config.AimbotAll = state
+    saveSettings()
+end)
+AimbotTab:CreateToggle("Limit Distance", Config.AimbotLimitDistance, function(state)
+    Config.AimbotLimitDistance = state
+    saveSettings()
+end)
+AimbotTab:CreateSlider("Max Distance Settings", 0, 1000, Config.AimbotMaxDistance, function(value)
+    Config.AimbotMaxDistance = value
+    saveSettings()
+    showDistanceCircle(value)
+end)
+AimbotTab:CreateLabel("Target Configuration")
+local AimbotTargetDropdown = AimbotTab:CreateDropdown("Select Aim Target", {"Closest", "Random"}, Config.AimbotTargetMode, function(v)
+    Config.AimbotTargetMode = v
+    saveSettings()
+end)
+
 ItemTap:CreateLabel("Buy from NPC")
 ItemTap:CreateDropdown("Select NPC", NpcList, Config.SelectedBuyNpc, function(v)
     SelectedBuyNpc = v
@@ -2614,13 +2716,12 @@ ItemTap:CreateToggle("Auto Buy Fruit", Config.AutoBuyFruitToggle, function(state
     saveSettings()
 end)
 
--- // STATUS TAB ELEMENTS (เพิ่ม Melee เรียบร้อยแล้ว) \\ --
 StatusTap:CreateLabel("Auto Rejoin Settings")
 local currentStatValue = nil
 
 StatusTap:CreateDropdown("Auto Rejoin on Stat Increase", {"nil", "Melee", "Defense", "Gun", "DevilFruit", "Sword"}, Config.SelectedStat, function(v)
     Config.SelectedStat = v
-    currentStatValue = nil -- รีเซ็ตค่าการตรวจสอบเพื่อให้จดจำค่าปัจจุบันใหม่
+    currentStatValue = nil 
     saveSettings()
 end)
 
@@ -2633,7 +2734,6 @@ task.spawn(function()
                 if currentStatValue == nil then
                     currentStatValue = statObj.Value
                 elseif statObj.Value > currentStatValue then
-                    -- บันทึกข้อมูลและ Rejoin ทันทีเมื่อค่า Status เปลี่ยนแปลงเพิ่มขึ้น
                     saveSettings()
                     task.wait(0.5)
                     pcall(function()
@@ -2647,7 +2747,6 @@ task.spawn(function()
     end
 end)
 
--- // TELEPORT TAB ELEMENTS \\ --
 TeleportTab:CreateLabel("NPC Teleport")
 TeleportTab:CreateDropdown("Teleport to NPC", NpcList, nil, function(v)
     if v and v ~= "" and NpcFolder then
@@ -2694,7 +2793,6 @@ TeleportTab:CreateButton("TP Chests (Farm)", function()
     end)
 end)
 
--- // PLAYER TAB ELEMENTS \\ --
 PlayerTab:CreateLabel("Movement Functions")
 PlayerTab:CreateToggle("Fly", Config.Flying, function(state)
     Config.Flying = state
@@ -2729,7 +2827,6 @@ PlayerTab:CreateButton("Teleport to Player", function()
     end
 end)
 
--- // COMMAND TAB ELEMENTS \\ --
 local COMMAND_CONFIG_KEY = "SavedCommands_SteveOP.json"
 local SavedCommands = {}
 pcall(function()
@@ -2781,7 +2878,55 @@ CommandTab:CreateButton("Delete Selected", function()
     end
 end)
 
--- // BACKGROUND THREADS \\ --
+task.spawn(function()
+    while true do
+        task.wait()
+        if Config.AimbotAll then
+            local closest = getAimbotTarget()
+            if closest and closest.Character then
+                local targetHRP = closest.Character:FindFirstChild("HumanoidRootPart")
+                currentAimbotTargetHRP = targetHRP
+                if targetHRP then
+                    for event in pairs(targetedEvents) do
+                        if event:IsDescendantOf(game) then
+                            event:FireServer("MouseCFrame", targetHRP.CFrame)
+                        else
+                            targetedEvents[event] = nil
+                        end
+                    end
+                end
+            else
+                currentAimbotTargetHRP = nil
+            end
+        else
+            currentAimbotTargetHRP = nil
+        end
+    end
+end)
+
+task.spawn(function()
+    local lastPlayerListStr = ""
+    while true do
+        task.wait(1.5)
+        local pList = {"All", "Closest"}
+        local aimList = {"Closest", "Random"}
+        
+        for _, p in ipairs(Players:GetPlayers()) do 
+            if p ~= LocalPlayer then 
+                table.insert(pList, p.Name) 
+                table.insert(aimList, p.Name)
+            end 
+        end
+        
+        local currentStr = table.concat(pList, ",")
+        if currentStr ~= lastPlayerListStr then 
+            lastPlayerListStr = currentStr 
+            PlayerDropdown:Refresh(pList) 
+            AimbotTargetDropdown:Refresh(aimList)
+        end
+    end
+end)
+
 local function updateQuestTools()
     AssignedTools = {}
     local currentTools = {}
@@ -2853,17 +2998,6 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local lastPlayerListStr = ""
-    while true do
-        task.wait(1.5)
-        local pList = {"All", "Closest"}
-        for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then table.insert(pList, p.Name) end end
-        local currentStr = table.concat(pList, ",")
-        if currentStr ~= lastPlayerListStr then lastPlayerListStr = currentStr PlayerDropdown:Refresh(pList) end
-    end
-end)
-
-task.spawn(function()
     while true do
         task.wait(0.5)
         if AutoBusoToggle then
@@ -2880,7 +3014,7 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait()
         if SafeModeToggle then
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -3119,9 +3253,8 @@ task.spawn(function()
     end
 end)
 
--- // เริ่มทำงานลูปต่างๆ ตามค่าเริ่มต้นจากการโหลดเซฟ Config \\ --
 if Config.AutoKenToggle then startAutoKen() end
-if Config.Flying then task.spawn(startFlying) end 
+if Config.Flying then task.spawn(startFlying) end
 end,
     [555] = function()
         print("Map 3 loaded")
